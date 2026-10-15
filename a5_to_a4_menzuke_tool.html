@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>A5→A4面付ツール（ネットプリント原稿用）</title>
+<title>A5→A4面付ツール</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
-:root{box-sizing:border-box;--bg:#f2f1ee;--pn:#fff;--tx:#222;--bd:#ccc;--ac:#2a5bd7;--on:#fff;--wn:#b7791f;--wb:rgba(217,162,27,.14);--ng:#c0392b;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1c1c1e;--pn:#2a2a2d;--tx:#eee;--bd:#444;--ac:#7aa2ff;--on:#10204a;--wn:#e6b84d;--ng:#ff8a7a}}
-:root[data-theme="dark"]{--bg:#1c1c1e;--pn:#2a2a2d;--tx:#eee;--bd:#444;--ac:#7aa2ff;--on:#10204a;--wn:#e6b84d;--ng:#ff8a7a}
+:root{box-sizing:border-box;--bg:#f2f1ee;--pn:#fff;--tx:#222;--bd:#ccc;--ac:#2a5bd7;--on:#fff;--wn:#b7791f;--wb:rgba(217,162,27,.14);--hl:rgba(255,213,0,.5);--ng:#c0392b;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1c1c1e;--pn:#2a2a2d;--tx:#eee;--bd:#444;--ac:#7aa2ff;--on:#10204a;--wn:#e6b84d;--hl:rgba(230,184,77,.35);--ng:#ff8a7a}}
+:root[data-theme="dark"]{--bg:#1c1c1e;--pn:#2a2a2d;--tx:#eee;--bd:#444;--ac:#7aa2ff;--on:#10204a;--wn:#e6b84d;--hl:rgba(230,184,77,.35);--ng:#ff8a7a}
 html{-webkit-text-size-adjust:none;text-size-adjust:none;scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.5 "Noto Sans JP",sans-serif}
@@ -26,6 +26,9 @@ button.sub{background:var(--pn);color:var(--tx);border:1px solid var(--bd);font-
 button:disabled{opacity:.4;cursor:not-allowed}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 .note{font-size:11px;opacity:.7}
+.print{border-left:4px solid var(--ac)}
+.print mark{display:inline-block;font-size:15px;font-weight:700;color:var(--tx);background:var(--hl);padding:3px 10px;border-radius:6px}
+#hintBody{font-size:13px;line-height:1.7}
 .ng{color:var(--ng);opacity:1;font-weight:700}
 .warn{border:1px solid var(--wn);background:var(--wb);border-radius:8px;padding:10px;font-size:12px;line-height:1.6;display:flex;flex-direction:column;gap:8px}
 .warn[hidden]{display:none}
@@ -47,7 +50,7 @@ h1{margin:0;padding:16px 16px 0;font-size:19px;line-height:1.4}
 .sitefoot .sep{color:#a8678a;margin:0 12px}
 </style></head>
 <body>
-<h1>A5→A4面付ツール（ネットプリント原稿用）</h1>
+<h1>A5→A4面付ツール</h1>
 <div class="notice">※アップロードした画像はこのページ内でのみ使用され、送信・保存は行われません。<br>※A5サイズのページ画像を、A4横の用紙に2ページずつ面付します。コンビニ機は用紙の端に印刷できない余白があるため、端ぎりぎりの内容は欠けることがあります。</div>
 <div class="app">
 <div class="panel">
@@ -75,10 +78,14 @@ h1{margin:0;padding:16px 16px 0;font-size:19px;line-height:1.4}
   <div id="wnt"></div>
   <div class="row"><button class="sub" id="wnSave">このままダウンロード</button><button class="sub" id="wnLight">軽量設定で作り直す</button></div>
  </div>
- <div class="note" id="hint"></div>
  <div class="note">ノド・天地・小口の余白を除いた範囲に、画像が縦横比を保ったまま収まります（拡大縮小100%）。大きくすると範囲外は切れ、小さくすると余白が増えます。この欄の値は新しく追加するページの初期値で、「全ページに適用」で一括変更できます。ページごとの倍率は一覧の各ページの％欄で変えられます。画像にすでに綴じしろや余白が含まれている場合は、ノド・余白を0mmにしてください。</div>
 </div>
 <div class="main">
+ <div class="panel print" aria-live="polite">
+  <h2>印刷と製本</h2>
+  <div><mark id="hintHead"></mark></div>
+  <div id="hintBody"></div>
+ </div>
  <div class="panel">
   <h2>ページ一覧 <span id="cnt" class="note"></span></h2>
   <div id="list" class="list"></div>
@@ -232,9 +239,11 @@ function updateStatus(){
  $('pdf').disabled=!valid(eff);
  $('npos').disabled=!$('num').checked;
  $('cnt').textContent=n?'（'+n+'ページ）':'';
- $('hint').textContent=$('mode').value==='duplex'
-  ?'印刷設定：両面印刷（短辺とじ）・原寸(100%)。刷り上がった用紙を、1枚目が一番外側になるよう重ねて中央で二つ折りにし、綴じてください。'
-  :'印刷設定：片面印刷・原寸(100%)。各用紙を印刷面が外側になるよう中央で二つ折りにし、用紙の左右の端（ノド側）を揃えて綴じてください。';
+ const du=$('mode').value==='duplex';
+ $('hintHead').textContent=du?'印刷設定：両面印刷（短辺とじ）・原寸(100%)。':'印刷設定：片面印刷・原寸(100%)。';
+ $('hintBody').textContent=du
+  ?'刷り上がった用紙を、1枚目が一番外側になるよう重ねて中央で二つ折りにし、綴じてください。'
+  :'各用紙を印刷面が外側になるよう中央で二つ折りにし、用紙の左右の端（ノド側）を揃えて綴じてください。';
 }
 
 function renderPreview(){
