@@ -45,12 +45,27 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .pvlist figcaption{font-size:11px;opacity:.75;margin-top:4px}
 h1{margin:0;padding:16px 16px 0;font-size:19px;line-height:1.4}
 .notice{padding:8px 16px 0;font-size:12px;line-height:1.7;opacity:.85}
+.alert{margin:12px 16px 0;border:2px solid var(--wn);background:var(--wb);border-radius:10px;padding:10px 14px;font-size:13px;line-height:1.7}
+.alert b{font-size:14px}
+.alert .now{display:block;margin-top:6px;color:var(--ng);font-weight:700}
+.alert .now[hidden]{display:none}
+#wnh{font-size:12px;line-height:1.7}
+#wnh[hidden]{display:none}
+#wnAlt{font-size:12px}
+#wnAlt[hidden]{display:none}
+.dlbtn{background:var(--ac);color:var(--on);font-weight:700;border:0;padding:12px}
 .sitefoot{margin-top:24px;border-top:1px solid var(--bd);padding:22px 16px calc(22px + env(safe-area-inset-bottom,0px));text-align:center;font-size:14px;line-height:2;opacity:.85}
 .sitefoot a{color:inherit;text-decoration:underline}
 .sitefoot .sep{color:#a8678a;margin:0 12px}
 </style></head>
 <body>
 <h1>A5→A4面付ツール</h1>
+<div class="alert" role="note">
+ <b>⚠ iPad・iPhoneでお使いの方へ</b><br>
+ LINE・X・Discordなどのアプリ内で開いたリンクでは、PDFを保存できないことがあります。<br>
+ その場合は、画面の右上や下にあるメニュー（「…」や共有ボタン）から<b>「Safariで開く」（ブラウザで開く）</b>を選び、Safariで開き直してからお使いください。見つからないときは、このページのURLをコピーしてSafariに貼り付けてください。
+ <span class="now" id="inappNow" hidden>※いま、アプリ内のブラウザで開いている可能性があります。上の方法でSafariに切り替えてください。</span>
+</div>
 <div class="notice">※アップロードした画像はこのページ内でのみ使用され、送信・保存は行われません。<br>※A5サイズのページ画像を、A4横の用紙に2ページずつ面付します。コンビニ機は用紙の端に印刷できない余白があるため、端ぎりぎりの内容は欠けることがあります。</div>
 <div class="app">
 <div class="panel">
@@ -76,7 +91,13 @@ h1{margin:0;padding:16px 16px 0;font-size:19px;line-height:1.4}
  <div id="st" class="note"></div>
  <div id="wn" class="warn" hidden>
   <div id="wnt"></div>
-  <div class="row"><button class="sub" id="wnSave">このままダウンロード</button><button class="sub" id="wnLight">軽量設定で作り直す</button></div>
+  <button class="dlbtn" id="wnSave" type="button">📥 PDFを保存する</button>
+  <div class="row"><button class="sub" id="wnAlt" type="button">うまく保存できない場合：別の方法で開く</button><button class="sub" id="wnLight" type="button">軽量設定で作り直す</button></div>
+  <div id="wnh" hidden>
+   <b>iPadでの保存のしかた</b><br>
+   ①「PDFを保存する」を押す → 共有メニューが開いたら<b>「"ファイル"に保存」</b>を選び、保存先を決める。<br>
+   ② PDFが画面に表示されてしまった場合は、画面上部（または右上）の<b>共有ボタン（□に↑）</b> → 「"ファイル"に保存」。
+  </div>
  </div>
  <div class="note">ノド・天地・小口の余白を除いた範囲に、画像が縦横比を保ったまま収まります（拡大縮小100%）。大きくすると範囲外は切れ、小さくすると余白が増えます。この欄の値は新しく追加するページの初期値で、「全ページに適用」で一括変更できます。ページごとの倍率は一覧の各ページの％欄で変えられます。画像にすでに綴じしろや余白が含まれている場合は、ノド・余白を0mmにしてください。</div>
 </div>
@@ -292,24 +313,57 @@ async function build(preset){
  }
  return doc.output('blob');
 }
+const UA=navigator.userAgent;
+const isIOS=/iPad|iPhone|iPod/.test(UA)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const inApp=/\bLine\/|FBAN|FBAV|FB_IAB|Instagram|Twitter|MicroMessenger|Discord|KAKAOTALK|; wv\)/i.test(UA);
+if(inApp)$('inappNow').hidden=false;
+
+const fname=()=>'A5toA4面付_'+($('mode').value==='duplex'?'両面印刷':'袋とじ')+'.pdf';
+
+// 従来方式：a[download]（PCなどではこれで保存される）
 function save(blob){
  const a=document.createElement('a'),u=URL.createObjectURL(blob);
- a.href=u;a.download='A5toA4面付_'+($('mode').value==='duplex'?'両面印刷':'袋とじ')+'.pdf';
- document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);
+ a.href=u;a.download=fname();
+ document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);
+}
+// 共有シート方式：iPadで「"ファイル"に保存」を選べる。必ずボタンのクリック内から直接呼ぶ
+async function shareSave(blob){
+ try{
+  const file=new File([blob],fname(),{type:'application/pdf'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+   try{await navigator.share({files:[file]});return 'shared'}
+   catch(e){if(e&&e.name==='AbortError')return 'cancel'}
+  }
+ }catch(_){}
+ save(blob);return 'dl';
+}
+// 最後の手段：PDFを新しいタブで開く（表示後に共有ボタンから保存）
+function openTab(blob){
+ const u=URL.createObjectURL(blob);
+ const w=window.open(u,'_blank');
+ if(!w)location.href=u;
+ setTimeout(()=>URL.revokeObjectURL(u),300000);
 }
 function hideWarn(){pending=null;$('wn').hidden=true}
 async function runExport(idx){
  if(!window.jspdf){alert('PDF出力用のライブラリを読み込めませんでした。通信環境をご確認のうえ、再度お試しください。');return}
  hideWarn();$('pdf').disabled=true;
  try{
-  const blob=await build(PRESETS[idx]),mb=blob.size/1048576;
-  if(blob.size>LIMIT){
+  const blob=await build(PRESETS[idx]),mb=blob.size/1048576,over=blob.size>LIMIT;
+  // iPad/iPhoneでは、生成後に「保存する」ボタンを出し、そのクリックで共有シートを開く
+  // （非同期処理の後に自動で保存しようとすると、画面表示になって保存できないため）
+  if(over||isIOS){
    pending={blob,idx};
-   $('st').className='note';$('st').textContent='PDFを作成しました（'+mb.toFixed(1)+'MB）。ダウンロードはまだ行っていません。';
-   $('wnt').textContent='⚠ PDFのサイズが約'+mb.toFixed(1)+'MBで、10MBを超えています。コンビニのネットプリントに登録できない場合があります。'
-    +(idx<PRESETS.length-1?'':'（これ以上は軽量化できません。ページ数を減らすか、分けて出力してください）');
-   $('wnLight').hidden=idx>=PRESETS.length-1;
+   $('st').className='note';$('st').textContent='PDFを作成しました（'+mb.toFixed(1)+'MB）。まだ保存は完了していません。下の「PDFを保存する」を押してください。';
+   $('wnt').textContent='PDFを作成しました（約'+mb.toFixed(1)+'MB）。下の「PDFを保存する」を押して保存してください。'
+    +(over?'\n⚠ サイズが10MBを超えています。コンビニのネットプリントに登録できない場合があります。'
+      +(idx<PRESETS.length-1?'':'（これ以上は軽量化できません。ページ数を減らすか、分けて出力してください）'):'');
+   $('wnt').style.whiteSpace='pre-line';
+   $('wnLight').hidden=!over||idx>=PRESETS.length-1;
+   $('wnAlt').hidden=!isIOS;
+   $('wnh').hidden=!isIOS;
    $('wn').hidden=false;
+   try{$('wn').scrollIntoView({behavior:'smooth',block:'center'})}catch(_){}
   }else{
    save(blob);$('st').className='note';$('st').textContent='PDFを書き出しました（'+mb.toFixed(1)+'MB）。';
   }
@@ -317,7 +371,20 @@ async function runExport(idx){
  finally{$('pdf').disabled=!valid(effective())}
 }
 $('pdf').onclick=()=>runExport(+$('q').value);
-$('wnSave').onclick=()=>{if(pending){save(pending.blob);$('st').textContent='PDFを書き出しました。'}};
+$('wnSave').onclick=async()=>{
+ if(!pending)return;
+ const b=pending.blob,st=$('st');st.className='note';
+ if(!isIOS){save(b);st.textContent='PDFを書き出しました。';return}
+ const r=await shareSave(b);
+ if(r==='shared')st.textContent='共有メニューを閉じました。「"ファイル"に保存」を選んだ場合は、「ファイル」アプリに保存されています。';
+ else if(r==='cancel')st.textContent='保存を中止しました。もう一度「PDFを保存する」を押してください。';
+ else st.textContent='共有メニューを開けなかったため、通常のダウンロードを試しました。画面にPDFが表示された場合は、共有ボタン（□に↑）→「"ファイル"に保存」を選ぶか、「別の方法で開く」をお試しください。';
+};
+$('wnAlt').onclick=()=>{
+ if(!pending)return;
+ openTab(pending.blob);
+ $('st').textContent='PDFを新しいタブで開きました。表示されたら、共有ボタン（□に↑）→「"ファイル"に保存」で保存できます。';
+};
 $('wnLight').onclick=()=>{if(pending){const n=pending.idx+1;$('q').value=n;runExport(n)}};
 
 refresh();
